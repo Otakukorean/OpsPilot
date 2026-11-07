@@ -137,6 +137,31 @@ services:
     networks:
       - opspilot_internal
 
+  proxy:
+    image: nginx:1.28.0-alpine
+    container_name: opspilot-proxy
+    expose:
+      - "8080"
+    volumes:
+      - ./infra/nginx/opspilot.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/nginx-health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      opspilot_internal:
+      dokploy_network:
+        aliases:
+          - opspilot-proxy
+
 volumes:
   postgres_data:
   redis_data:
@@ -145,3 +170,6 @@ volumes:
 networks:
   opspilot_internal:
     driver: bridge
+  dokploy_network:
+    external: true
+    name: dokploy-network

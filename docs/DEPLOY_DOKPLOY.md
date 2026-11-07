@@ -11,9 +11,9 @@ OpsPilot ships a separate `compose.prod.yaml` for production. The existing
    `./compose.prod.yaml` as the Compose path.
 4. Enable Dokploy's isolated deployment option when available.
 
-The production stack publishes no host ports. PostgreSQL, Redis, Django, and the
-Celery worker stay on the private Compose network. Only the `frontend` service is
-routed through Dokploy.
+The production stack publishes no host ports. PostgreSQL, Redis, Django, the
+frontend, and the Celery worker stay on private Docker networks. Nginx is the
+only application gateway attached to Dokploy's external network.
 
 ## 2. Configure production environment variables
 
@@ -73,15 +73,15 @@ file forces debug mode off, HTTPS redirects on, and secure cookies on.
 
 In the Compose service's **Domains** tab, add the public domain with:
 
-- Service: `frontend`
-- Container port: `3000`
+- Service: `proxy`
+- Container port: `8080`
 - Path: `/`
 - HTTPS: enabled
 - Certificate: Let's Encrypt
 
-Redeploy after adding or changing the domain. Requests to `/api`, `/admin`, and
-`/static` are proxied by Next.js to the private Django service, so the backend
-must not receive a separate public domain.
+Redeploy after adding or changing the domain. Nginx sends `/api`, `/admin`,
+`/static`, and `/health` to private Django and all other requests to private
+Next.js. The backend and frontend must not receive separate public domains.
 
 ## 4. Deploy and seed the fictional demo
 
