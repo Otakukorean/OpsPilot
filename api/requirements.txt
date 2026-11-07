@@ -1,3 +1,13 @@
 Django==5.2.19
+celery[redis]==5.7.0
 django-crispy-forms==2.7
+django-ninja==1.7.3
 django-unfold==0.110.1
+gunicorn==26.2.0
+langchain-openai==1.7.4
+langgraph==1.2.20
+psycopg[binary]==3.3.8
+pgvector==0.5.1
+pypdf==6.21.4
+redis==8.1.0
+whitenoise==6.12.0

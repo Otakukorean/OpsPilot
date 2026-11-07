@@ -1,0 +1,147 @@
+name: opspilot
+
+services:
+  database:
+    image: pgvector/pgvector:0.8.7-pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opspilot}
+      POSTGRES_USER: ${POSTGRES_USER:-opspilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Dokploy}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - opspilot_internal
+
+  redis:
+    image: redis:7.4.11-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - opspilot_internal
+
+  backend:
+    build:
+      context: ./api
+    env_file:
+      - .env
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in Dokploy}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in Dokploy},backend,127.0.0.1,localhost
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Set DJANGO_CSRF_TRUSTED_ORIGINS in Dokploy}
+      DJANGO_SECURE_COOKIES: "true"
+      DJANGO_SECURE_SSL_REDIRECT: "true"
+      DJANGO_HSTS_SECONDS: ${DJANGO_HSTS_SECONDS:-3600}
+      POSTGRES_HOST: database
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-opspilot}
+      POSTGRES_USER: ${POSTGRES_USER:-opspilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Dokploy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OPSPILOT_PRIVATE_MEDIA_ROOT: /app/private_media
+    command: ["/app/docker/entrypoint.prod.sh"]
+    expose:
+      - "8000"
+    volumes:
+      - private_uploads:/app/private_media
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; request = urllib.request.Request('http://127.0.0.1:8000/health/', headers={'X-Forwarded-Proto': 'https'}); urllib.request.urlopen(request, timeout=5)"]
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 45s
+    restart: unless-stopped
+    stop_grace_period: 45s
+    networks:
+      - opspilot_internal
+
+  worker:
+    build:
+      context: ./api
+    env_file:
+      - .env
+    environment:
+      DJANGO_DEBUG: "false"
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in Dokploy}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?Set DJANGO_ALLOWED_HOSTS in Dokploy},backend,127.0.0.1,localhost
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:?Set DJANGO_CSRF_TRUSTED_ORIGINS in Dokploy}
+      DJANGO_SECURE_COOKIES: "true"
+      DJANGO_SECURE_SSL_REDIRECT: "true"
+      POSTGRES_HOST: database
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-opspilot}
+      POSTGRES_USER: ${POSTGRES_USER:-opspilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in Dokploy}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      OPSPILOT_PRIVATE_MEDIA_ROOT: /app/private_media
+    command: ["celery", "-A", "config", "worker", "--loglevel=INFO"]
+    volumes:
+      - private_uploads:/app/private_media
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 45s
+    networks:
+      - opspilot_internal
+
+  frontend:
+    build:
+      context: ./frontend
+      target: runner
+      args:
+        API_PROXY_TARGET: http://backend:8000
+        NEXT_PUBLIC_DEMO_EMAIL: ${OPSPILOT_TESTER_EMAIL:?Set OPSPILOT_TESTER_EMAIL in Dokploy}
+        NEXT_PUBLIC_DEMO_PASSWORD: ${OPSPILOT_TESTER_PASSWORD:?Set OPSPILOT_TESTER_PASSWORD in Dokploy}
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_ENV: production
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - opspilot_internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  private_uploads:
+
+networks:
+  opspilot_internal:
+    driver: bridge

@@ -23,6 +23,8 @@ htmlcov/
 db.sqlite3
 *.sqlite3
 media/
+private_media/
+api/private_media/
 staticfiles/
 
 # Environment and secrets
@@ -34,3 +36,11 @@ staticfiles/
 build/
 dist/
 *.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.npm/
