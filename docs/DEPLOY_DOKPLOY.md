@@ -11,6 +11,10 @@ OpsPilot ships a separate `compose.prod.yaml` for production. The existing
    `./compose.prod.yaml` as the Compose path.
 4. Enable Dokploy's isolated deployment option when available.
 
+For a manual VPS deployment using Dokploy's existing Traefik instance, install
+`infra/traefik/opspilot.yml` into `/etc/dokploy/traefik/dynamic/`. The file routes
+`opspilot.ahmed-alsaleem.site` to the Nginx gateway on `dokploy-network`.
+
 The production stack publishes no host ports. PostgreSQL, Redis, Django, the
 frontend, and the Celery worker stay on private Docker networks. Nginx is the
 only application gateway attached to Dokploy's external network.

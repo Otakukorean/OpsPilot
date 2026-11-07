@@ -1,0 +1,22 @@
+http:
+  routers:
+    opspilot-router-http:
+      rule: Host(`opspilot.ahmed-alsaleem.site`)
+      service: opspilot-service
+      middlewares:
+        - redirect-to-https
+      entryPoints:
+        - web
+    opspilot-router-https:
+      rule: Host(`opspilot.ahmed-alsaleem.site`)
+      service: opspilot-service
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  services:
+    opspilot-service:
+      loadBalancer:
+        servers:
+          - url: http://opspilot-proxy:8080
+        passHostHeader: true
